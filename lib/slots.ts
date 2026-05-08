@@ -1,20 +1,18 @@
-import { addMinutes, parseISO, startOfDay, endOfDay, addDays, format } from "date-fns"
-import { toZonedTime, fromZonedTime } from "date-fns-tz"
+import { addMinutes } from "date-fns"
+import { fromZonedTime, toZonedTime } from "date-fns-tz"
 import { prisma } from "./prisma"
 
 const TZ = "America/Sao_Paulo"
 
-function timeToZonedDate(dateStr: string, timeStr: string): Date {
-  const [hour, minute] = timeStr.split(":").map(Number)
-  const base = toZonedTime(parseISO(dateStr), TZ)
-  base.setHours(hour, minute, 0, 0)
-  return fromZonedTime(base, TZ)
+// Converte "2026-05-12" + "09:00" para UTC, tratando o horário como Sao Paulo
+function toUTC(dateStr: string, timeStr: string): Date {
+  return fromZonedTime(`${dateStr}T${timeStr}:00`, TZ)
 }
 
 export async function getAvailableSlots(dateStr: string) {
-  const dateUtc = parseISO(dateStr)
-  const zoned = toZonedTime(dateUtc, TZ)
-  const dayOfWeek = zoned.getDay()
+  // Extrai dia da semana diretamente da string, sem conversão de timezone
+  const [year, month, day] = dateStr.split("-").map(Number)
+  const dayOfWeek = new Date(year, month - 1, day).getDay()
 
   const availability = await prisma.availability.findFirst({
     where: { dayOfWeek, active: true },
@@ -22,24 +20,20 @@ export async function getAvailableSlots(dateStr: string) {
 
   if (!availability) return []
 
-  const rangeStart = timeToZonedDate(dateStr, availability.startTime)
-  const rangeEnd = timeToZonedDate(dateStr, availability.endTime)
+  const rangeStart = toUTC(dateStr, availability.startTime)
+  const rangeEnd   = toUTC(dateStr, availability.endTime)
+  const lunchStart = availability.lunchStart ? toUTC(dateStr, availability.lunchStart) : null
+  const lunchEnd   = availability.lunchEnd   ? toUTC(dateStr, availability.lunchEnd)   : null
 
-  const lunchStart = availability.lunchStart
-    ? timeToZonedDate(dateStr, availability.lunchStart)
-    : null
-  const lunchEnd = availability.lunchEnd
-    ? timeToZonedDate(dateStr, availability.lunchEnd)
-    : null
-
-  const dayStart = fromZonedTime(toZonedTime(parseISO(dateStr + "T00:00:00"), TZ), TZ)
-  const dayEnd = fromZonedTime(toZonedTime(parseISO(dateStr + "T23:59:59"), TZ), TZ)
+  // Intervalo do dia em Sao Paulo para buscar reservas existentes
+  const dayStart = toUTC(dateStr, "00:00")
+  const dayEnd   = toUTC(dateStr, "23:59")
 
   const existingBookings = await prisma.booking.findMany({
     where: {
       status: "confirmed",
       startTime: { gte: dayStart },
-      endTime: { lte: dayEnd },
+      endTime:   { lte: dayEnd },
     },
   })
 
@@ -50,14 +44,11 @@ export async function getAvailableSlots(dateStr: string) {
   while (addMinutes(current, availability.slotMinutes) <= rangeEnd) {
     const slotEnd = addMinutes(current, availability.slotMinutes)
 
-    const inLunch =
-      lunchStart && lunchEnd && current < lunchEnd && slotEnd > lunchStart
+    const inLunch   = lunchStart && lunchEnd && current < lunchEnd && slotEnd > lunchStart
+    const occupied  = existingBookings.some((b) => current < b.endTime && slotEnd > b.startTime)
+    const isPast    = current <= now
 
-    const occupied = existingBookings.some(
-      (b) => current < b.endTime && slotEnd > b.startTime
-    )
-
-    if (!inLunch && !occupied && current > now) {
+    if (!inLunch && !occupied && !isPast) {
       slots.push({ start: new Date(current), end: slotEnd })
     }
 
