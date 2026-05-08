@@ -4,9 +4,11 @@ import { useState, useEffect } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { format, parseISO, addDays } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { ChevronLeft, ChevronRight, Clock, CheckCircle, AlertCircle, LogIn, LogOut, User } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, CheckCircle, AlertCircle, LogIn, LogOut, User, CalendarCheck } from "lucide-react"
 
 type Slot = { start: string; end: string }
+
+const PENDING_KEY = "pendingBookingSlot"
 
 export function BookingForm() {
   const { data: session, status } = useSession()
@@ -23,6 +25,21 @@ export function BookingForm() {
   const weekStart = addDays(today, weekOffset * 7 + 1)
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
+  // Restaura horário selecionado após redirect do OAuth
+  useEffect(() => {
+    if (status === "authenticated") {
+      const saved = sessionStorage.getItem(PENDING_KEY)
+      if (saved) {
+        try {
+          const { date, slot } = JSON.parse(saved)
+          setSelectedDate(date)
+          setSelectedSlot(slot)
+        } catch {}
+        sessionStorage.removeItem(PENDING_KEY)
+      }
+    }
+  }, [status])
+
   // Pré-preenche nome e email do usuário logado
   useEffect(() => {
     if (session?.user) {
@@ -34,16 +51,26 @@ export function BookingForm() {
     }
   }, [session])
 
+  // Busca horários ao selecionar data
   useEffect(() => {
     if (!selectedDate) return
     setLoadingSlots(true)
     setSlots([])
-    setSelectedSlot(null)
+    if (!selectedSlot) {
+      // só limpa se não veio do sessionStorage
+    }
     fetch(`/api/slots?date=${selectedDate}`)
       .then((r) => r.json())
       .then((data) => { setSlots(Array.isArray(data) ? data : []); setLoadingSlots(false) })
       .catch(() => setLoadingSlots(false))
   }, [selectedDate])
+
+  const handleSignIn = () => {
+    if (selectedDate && selectedSlot) {
+      sessionStorage.setItem(PENDING_KEY, JSON.stringify({ date: selectedDate, slot: selectedSlot }))
+    }
+    signIn("google")
+  }
 
   const submit = async () => {
     if (!selectedSlot || !form.guestName || !form.guestEmail) return
@@ -59,23 +86,71 @@ export function BookingForm() {
     else setResult("error")
   }
 
-  // Confirmação de sucesso
+  // ✅ Tela de confirmação
   if (result === "success") {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Agendamento confirmado!</h2>
-        <p className="text-gray-500 mb-6 text-sm">
+      <div className="flex flex-col items-center py-8 text-center">
+        <div className="relative mb-6">
+          <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center">
+            <CalendarCheck className="w-12 h-12 text-green-600" />
+          </div>
+          <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+            <CheckCircle className="w-5 h-5 text-white" />
+          </div>
+        </div>
+
+        <h2 className="text-2xl font-bold text-gray-900 mb-1">Agendamento solicitado!</h2>
+        <p className="text-gray-500 text-sm mb-6">
           Um convite foi enviado para <strong>{form.guestEmail}</strong>
         </p>
-        <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-1 mb-6">
-          <p><strong>{form.guestName}</strong></p>
-          <p>{format(parseISO(selectedSlot!.start), "EEEE, d 'de' MMMM", { locale: ptBR })}</p>
-          <p>
-            {format(parseISO(selectedSlot!.start), "HH:mm")} –{" "}
-            {format(parseISO(selectedSlot!.end), "HH:mm")}
-          </p>
+
+        <div className="w-full bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-5 mb-6 text-left space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <User className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 leading-none mb-0.5">Nome</p>
+              <p className="font-semibold text-gray-800">{form.guestName}</p>
+            </div>
+          </div>
+          <div className="border-t border-blue-100" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <CalendarCheck className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 leading-none mb-0.5">Data</p>
+              <p className="font-semibold text-gray-800 capitalize">
+                {format(parseISO(selectedSlot!.start), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </p>
+            </div>
+          </div>
+          <div className="border-t border-blue-100" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Clock className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 leading-none mb-0.5">Horário</p>
+              <p className="font-semibold text-gray-800">
+                {format(parseISO(selectedSlot!.start), "HH:mm")} –{" "}
+                {format(parseISO(selectedSlot!.end), "HH:mm")}
+              </p>
+            </div>
+          </div>
+          {form.notes && (
+            <>
+              <div className="border-t border-blue-100" />
+              <p className="text-sm text-gray-500 pl-12">{form.notes}</p>
+            </>
+          )}
         </div>
+
+        <p className="text-xs text-gray-400 mb-5">
+          Verifique sua caixa de entrada para o convite do Google Calendar.
+        </p>
+
         <button
           onClick={() => {
             setResult(null)
@@ -83,9 +158,9 @@ export function BookingForm() {
             setSelectedSlot(null)
             setForm((f) => ({ ...f, notes: "" }))
           }}
-          className="text-blue-600 hover:underline text-sm"
+          className="text-blue-600 hover:underline text-sm font-medium"
         >
-          Fazer outro agendamento
+          ← Fazer outro agendamento
         </button>
       </div>
     )
@@ -134,7 +209,7 @@ export function BookingForm() {
             return (
               <button
                 key={str}
-                onClick={() => setSelectedDate(str)}
+                onClick={() => { setSelectedDate(str); setSelectedSlot(null) }}
                 className={`relative flex flex-col items-center py-2.5 px-1 rounded-xl text-sm transition border ${
                   isSelected
                     ? "bg-blue-600 text-white border-blue-600 shadow-md"
@@ -195,14 +270,13 @@ export function BookingForm() {
       {/* Após selecionar horário: login ou formulário */}
       {selectedSlot && (
         <div className="space-y-4">
-          {/* Resumo do horário escolhido */}
           <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-700 font-medium">
             {format(parseISO(selectedSlot.start), "EEEE, d 'de' MMMM", { locale: ptBR })} •{" "}
             {format(parseISO(selectedSlot.start), "HH:mm")} –{" "}
             {format(parseISO(selectedSlot.end), "HH:mm")}
           </div>
 
-          {/* Não logado: pede login */}
+          {/* Não logado */}
           {status !== "loading" && !session ? (
             <div className="flex flex-col items-center py-6 text-center border border-gray-200 rounded-xl bg-gray-50">
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-3">
@@ -215,7 +289,7 @@ export function BookingForm() {
                 Seu nome e e-mail serão preenchidos automaticamente.
               </p>
               <button
-                onClick={() => signIn("google")}
+                onClick={handleSignIn}
                 className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-5 py-2.5 rounded-xl hover:bg-gray-50 transition font-medium shadow-sm text-sm"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -228,9 +302,7 @@ export function BookingForm() {
               </button>
             </div>
           ) : (
-            /* Logado: mostra formulário */
             <>
-              {/* Info do usuário */}
               <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   {session?.user?.image ? (
