@@ -9,8 +9,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Agendamento",
-  description: "Sistema de agendamento com Google Calendar",
+  title: "Agendar Horário com a Paiva Piovesan",
+  description: "Agende um horário com a Paiva Piovesan",
 };
 
 export default function RootLayout({

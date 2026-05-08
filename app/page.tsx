@@ -9,7 +9,7 @@ export default function HomePage() {
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-blue-600" />
-            <span className="font-semibold text-gray-800">Agendar Horário</span>
+            <span className="font-semibold text-gray-800">Agendar Horário com a Paiva Piovesan</span>
           </div>
           <Link
             href="/admin"
@@ -23,7 +23,7 @@ export default function HomePage() {
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Agende um horário</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Agendar Horário com a Paiva Piovesan</h1>
             <p className="text-gray-500 mt-1 text-sm">
               Escolha a data e horário disponível abaixo.
             </p>
