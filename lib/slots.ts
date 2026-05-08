@@ -1,9 +1,20 @@
-import { addMinutes, isWithinInterval, parseISO, format, startOfDay, endOfDay, addDays } from "date-fns"
+import { addMinutes, parseISO, startOfDay, endOfDay, addDays, format } from "date-fns"
+import { toZonedTime, fromZonedTime } from "date-fns-tz"
 import { prisma } from "./prisma"
 
+const TZ = "America/Sao_Paulo"
+
+function timeToZonedDate(dateStr: string, timeStr: string): Date {
+  const [hour, minute] = timeStr.split(":").map(Number)
+  const base = toZonedTime(parseISO(dateStr), TZ)
+  base.setHours(hour, minute, 0, 0)
+  return fromZonedTime(base, TZ)
+}
+
 export async function getAvailableSlots(dateStr: string) {
-  const date = parseISO(dateStr)
-  const dayOfWeek = date.getDay()
+  const dateUtc = parseISO(dateStr)
+  const zoned = toZonedTime(dateUtc, TZ)
+  const dayOfWeek = zoned.getDay()
 
   const availability = await prisma.availability.findFirst({
     where: { dayOfWeek, active: true },
@@ -11,34 +22,42 @@ export async function getAvailableSlots(dateStr: string) {
 
   if (!availability) return []
 
-  const [startHour, startMin] = availability.startTime.split(":").map(Number)
-  const [endHour, endMin] = availability.endTime.split(":").map(Number)
+  const rangeStart = timeToZonedDate(dateStr, availability.startTime)
+  const rangeEnd = timeToZonedDate(dateStr, availability.endTime)
 
-  const rangeStart = new Date(date)
-  rangeStart.setHours(startHour, startMin, 0, 0)
+  const lunchStart = availability.lunchStart
+    ? timeToZonedDate(dateStr, availability.lunchStart)
+    : null
+  const lunchEnd = availability.lunchEnd
+    ? timeToZonedDate(dateStr, availability.lunchEnd)
+    : null
 
-  const rangeEnd = new Date(date)
-  rangeEnd.setHours(endHour, endMin, 0, 0)
+  const dayStart = fromZonedTime(toZonedTime(parseISO(dateStr + "T00:00:00"), TZ), TZ)
+  const dayEnd = fromZonedTime(toZonedTime(parseISO(dateStr + "T23:59:59"), TZ), TZ)
 
   const existingBookings = await prisma.booking.findMany({
     where: {
       status: "confirmed",
-      startTime: { gte: startOfDay(date) },
-      endTime: { lte: endOfDay(date) },
+      startTime: { gte: dayStart },
+      endTime: { lte: dayEnd },
     },
   })
 
   const slots: { start: Date; end: Date }[] = []
   let current = new Date(rangeStart)
+  const now = new Date()
 
   while (addMinutes(current, availability.slotMinutes) <= rangeEnd) {
     const slotEnd = addMinutes(current, availability.slotMinutes)
+
+    const inLunch =
+      lunchStart && lunchEnd && current < lunchEnd && slotEnd > lunchStart
+
     const occupied = existingBookings.some(
-      (b) =>
-        current < b.endTime && slotEnd > b.startTime
+      (b) => current < b.endTime && slotEnd > b.startTime
     )
 
-    if (!occupied && current > new Date()) {
+    if (!inLunch && !occupied && current > now) {
       slots.push({ start: new Date(current), end: slotEnd })
     }
 
@@ -46,14 +65,4 @@ export async function getAvailableSlots(dateStr: string) {
   }
 
   return slots
-}
-
-export function getNextAvailableDays(count: number): string[] {
-  const days: string[] = []
-  let d = addDays(new Date(), 1)
-  while (days.length < count) {
-    days.push(format(d, "yyyy-MM-dd"))
-    d = addDays(d, 1)
-  }
-  return days
 }

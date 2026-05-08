@@ -14,21 +14,22 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
 
   const body = await req.json()
-  const { dayOfWeek, startTime, endTime, slotMinutes, active } = body
+  const { dayOfWeek, startTime, endTime, lunchStart, lunchEnd, slotMinutes, active } = body
 
   const existing = await prisma.availability.findFirst({ where: { dayOfWeek } })
 
-  let availability
-  if (existing) {
-    availability = await prisma.availability.update({
-      where: { id: existing.id },
-      data: { startTime, endTime, slotMinutes, active },
-    })
-  } else {
-    availability = await prisma.availability.create({
-      data: { dayOfWeek, startTime, endTime, slotMinutes, active },
-    })
+  const data = {
+    startTime,
+    endTime,
+    lunchStart: lunchStart || null,
+    lunchEnd: lunchEnd || null,
+    slotMinutes,
+    active,
   }
+
+  const availability = existing
+    ? await prisma.availability.update({ where: { id: existing.id }, data })
+    : await prisma.availability.create({ data: { dayOfWeek, ...data } })
 
   return NextResponse.json(availability)
 }

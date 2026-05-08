@@ -58,6 +58,8 @@ model Availability {
   dayOfWeek   Int
   startTime   String
   endTime     String
+  lunchStart  String?
+  lunchEnd    String?
   slotMinutes Int      @default(30)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())

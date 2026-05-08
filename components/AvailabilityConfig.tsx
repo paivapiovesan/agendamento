@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Save, Check } from "lucide-react"
+import { Save, Check, Coffee } from "lucide-react"
 
 const DAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
 
@@ -10,6 +10,8 @@ type DayConfig = {
   dayOfWeek: number
   startTime: string
   endTime: string
+  lunchStart: string
+  lunchEnd: string
   slotMinutes: number
   active: boolean
 }
@@ -19,6 +21,8 @@ const defaultConfig = (): DayConfig[] =>
     dayOfWeek: i,
     startTime: "09:00",
     endTime: "18:00",
+    lunchStart: "12:00",
+    lunchEnd: "13:00",
     slotMinutes: 30,
     active: i >= 1 && i <= 5,
   }))
@@ -35,7 +39,14 @@ export function AvailabilityConfig() {
         setConfigs((prev) =>
           prev.map((cfg) => {
             const found = data.find((d) => d.dayOfWeek === cfg.dayOfWeek)
-            return found ? { ...cfg, ...found } : cfg
+            return found
+              ? {
+                  ...cfg,
+                  ...found,
+                  lunchStart: found.lunchStart ?? "12:00",
+                  lunchEnd: found.lunchEnd ?? "13:00",
+                }
+              : cfg
           })
         )
       })
@@ -65,66 +76,91 @@ export function AvailabilityConfig() {
       {configs.map((cfg, i) => (
         <div
           key={i}
-          className={`flex flex-wrap items-center gap-3 p-4 rounded-xl border transition ${
+          className={`p-4 rounded-xl border transition ${
             cfg.active ? "bg-white border-gray-200" : "bg-gray-50 border-gray-100 opacity-60"
           }`}
         >
-          <label className="flex items-center gap-2 w-28 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={cfg.active}
-              onChange={(e) => update(i, "active", e.target.checked)}
-              className="w-4 h-4 accent-blue-600"
-            />
-            <span className="font-medium text-sm text-gray-700">{DAYS[i]}</span>
-          </label>
+          {/* Linha 1: dia + horário de atendimento + duração + salvar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 w-28 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={cfg.active}
+                onChange={(e) => update(i, "active", e.target.checked)}
+                className="w-4 h-4 accent-blue-600"
+              />
+              <span className="font-medium text-sm text-gray-700">{DAYS[i]}</span>
+            </label>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="time"
-              value={cfg.startTime}
-              disabled={!cfg.active}
-              onChange={(e) => update(i, "startTime", e.target.value)}
-              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
-            />
-            <span className="text-gray-400 text-sm">até</span>
-            <input
-              type="time"
-              value={cfg.endTime}
-              disabled={!cfg.active}
-              onChange={(e) => update(i, "endTime", e.target.value)}
-              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
-            />
-          </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="time"
+                value={cfg.startTime}
+                disabled={!cfg.active}
+                onChange={(e) => update(i, "startTime", e.target.value)}
+                className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
+              />
+              <span className="text-gray-400 text-sm">até</span>
+              <input
+                type="time"
+                value={cfg.endTime}
+                disabled={!cfg.active}
+                onChange={(e) => update(i, "endTime", e.target.value)}
+                className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
+              />
+            </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Duração:</span>
-            <select
-              value={cfg.slotMinutes}
-              disabled={!cfg.active}
-              onChange={(e) => update(i, "slotMinutes", Number(e.target.value))}
-              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Duração:</span>
+              <select
+                value={cfg.slotMinutes}
+                disabled={!cfg.active}
+                onChange={(e) => update(i, "slotMinutes", Number(e.target.value))}
+                className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
+              >
+                <option value={15}>15 min</option>
+                <option value={30}>30 min</option>
+                <option value={45}>45 min</option>
+                <option value={60}>1 hora</option>
+                <option value={90}>1h30</option>
+                <option value={120}>2 horas</option>
+              </select>
+            </div>
+
+            <button
+              onClick={() => save(i)}
+              disabled={saving === i}
+              className="ml-auto flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded-lg transition disabled:opacity-50"
             >
-              <option value={15}>15 min</option>
-              <option value={30}>30 min</option>
-              <option value={45}>45 min</option>
-              <option value={60}>1 hora</option>
-              <option value={90}>1h30</option>
-              <option value={120}>2 horas</option>
-            </select>
+              {saved === i ? (
+                <><Check className="w-4 h-4" /> Salvo</>
+              ) : (
+                <><Save className="w-4 h-4" /> Salvar</>
+              )}
+            </button>
           </div>
 
-          <button
-            onClick={() => save(i)}
-            disabled={saving === i}
-            className="ml-auto flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-          >
-            {saved === i ? (
-              <><Check className="w-4 h-4" /> Salvo</>
-            ) : (
-              <><Save className="w-4 h-4" /> Salvar</>
-            )}
-          </button>
+          {/* Linha 2: intervalo de almoço */}
+          {cfg.active && (
+            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+              <Coffee className="w-4 h-4 text-amber-500" />
+              <span className="text-sm text-gray-500">Intervalo de almoço:</span>
+              <input
+                type="time"
+                value={cfg.lunchStart}
+                onChange={(e) => update(i, "lunchStart", e.target.value)}
+                className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <span className="text-gray-400 text-sm">até</span>
+              <input
+                type="time"
+                value={cfg.lunchEnd}
+                onChange={(e) => update(i, "lunchEnd", e.target.value)}
+                className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <span className="text-xs text-gray-400">(deixe em branco para desativar)</span>
+            </div>
+          )}
         </div>
       ))}
     </div>
