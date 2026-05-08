@@ -20,10 +20,22 @@ export function BookingForm() {
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<"success" | "error" | "conflict" | null>(null)
   const [weekOffset, setWeekOffset] = useState(0)
+  const [activeDays, setActiveDays] = useState<Set<number>>(new Set([1, 2, 3, 4, 5]))
+
+  // Busca os dias da semana com disponibilidade configurada
+  useEffect(() => {
+    fetch("/api/availability")
+      .then((r) => r.json())
+      .then((data: { dayOfWeek: number; active: boolean }[]) => {
+        setActiveDays(new Set(data.filter((d) => d.active).map((d) => d.dayOfWeek)))
+      })
+      .catch(() => {})
+  }, [])
 
   const today = new Date()
   const weekStart = addDays(today, weekOffset * 7 + 1)
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const allWeekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const weekDays = allWeekDays.filter((day) => activeDays.has(day.getDay()))
 
   // Restaura horário selecionado após redirect do OAuth
   useEffect(() => {
@@ -175,12 +187,12 @@ export function BookingForm() {
           <div>
             <h2 className="font-semibold text-gray-700 leading-none">Escolha uma data</h2>
             <p className="text-sm text-blue-600 font-medium mt-1 capitalize">
-              {(() => {
+              {weekDays.length > 0 && (() => {
                 const firstMonth = format(weekDays[0], "MMMM", { locale: ptBR })
-                const lastMonth = format(weekDays[6], "MMMM", { locale: ptBR })
-                const year = format(weekDays[6], "yyyy")
+                const lastMonth = format(weekDays[weekDays.length - 1], "MMMM", { locale: ptBR })
+                const year = format(weekDays[weekDays.length - 1], "yyyy")
                 if (firstMonth === lastMonth) return `${firstMonth} ${year}`
-                return `${format(weekDays[0], "MMM", { locale: ptBR })} – ${format(weekDays[6], "MMM", { locale: ptBR })} ${year}`
+                return `${format(weekDays[0], "MMM", { locale: ptBR })} – ${format(weekDays[weekDays.length - 1], "MMM", { locale: ptBR })} ${year}`
               })()}
             </p>
           </div>
@@ -200,36 +212,44 @@ export function BookingForm() {
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {weekDays.map((day) => {
-            const str = format(day, "yyyy-MM-dd")
-            const isSelected = selectedDate === str
-            const isMonthBoundary =
-              weekDays.indexOf(day) > 0 &&
-              format(day, "M") !== format(weekDays[weekDays.indexOf(day) - 1], "M")
-            return (
-              <button
-                key={str}
-                onClick={() => { setSelectedDate(str); setSelectedSlot(null) }}
-                className={`relative flex flex-col items-center py-2.5 px-1 rounded-xl text-sm transition border ${
-                  isSelected
-                    ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                    : "hover:bg-blue-50 border-gray-100 text-gray-600"
-                }`}
-              >
-                {isMonthBoundary && (
-                  <span className={`absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold px-1 rounded ${isSelected ? "text-blue-200" : "text-blue-400"}`}>
-                    {format(day, "MMM", { locale: ptBR })}
+        {weekDays.length === 0 ? (
+          <div className="text-center py-6 text-gray-400 text-sm">
+            Nenhum dia com disponibilidade configurada.
+          </div>
+        ) : (
+          <div
+            className="grid gap-1.5"
+            style={{ gridTemplateColumns: `repeat(${weekDays.length}, minmax(0, 1fr))` }}
+          >
+            {weekDays.map((day, idx) => {
+              const str = format(day, "yyyy-MM-dd")
+              const isSelected = selectedDate === str
+              const isMonthBoundary =
+                idx > 0 && format(day, "M") !== format(weekDays[idx - 1], "M")
+              return (
+                <button
+                  key={str}
+                  onClick={() => { setSelectedDate(str); setSelectedSlot(null) }}
+                  className={`relative flex flex-col items-center py-2.5 px-1 rounded-xl text-sm transition border ${
+                    isSelected
+                      ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                      : "hover:bg-blue-50 border-gray-100 text-gray-600"
+                  }`}
+                >
+                  {isMonthBoundary && (
+                    <span className={`absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold px-1 rounded ${isSelected ? "text-blue-200" : "text-blue-400"}`}>
+                      {format(day, "MMM", { locale: ptBR })}
+                    </span>
+                  )}
+                  <span className="text-xs font-medium capitalize opacity-70">
+                    {format(day, "EEE", { locale: ptBR })}
                   </span>
-                )}
-                <span className="text-xs font-medium capitalize opacity-70">
-                  {format(day, "EEE", { locale: ptBR })}
-                </span>
-                <span className="text-base font-bold">{format(day, "d")}</span>
-              </button>
-            )
-          })}
-        </div>
+                  <span className="text-base font-bold">{format(day, "d")}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Horários */}
