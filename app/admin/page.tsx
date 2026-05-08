@@ -1,14 +1,16 @@
 import { auth } from "@/auth"
-import { redirect } from "next/navigation"
 import { SignInButton, SignOutButton } from "@/components/SignInButton"
 import { AvailabilityConfig } from "@/components/AvailabilityConfig"
 import { BookingsList } from "@/components/BookingsList"
-import { Calendar, Settings, LogOut } from "lucide-react"
+import { Calendar, Settings, ShieldX } from "lucide-react"
 import Link from "next/link"
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL
 
 export default async function AdminPage() {
   const session = await auth()
 
+  // Não logado
   if (!session) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center px-4">
@@ -31,6 +33,33 @@ export default async function AdminPage() {
     )
   }
 
+  // Logado mas e-mail não autorizado
+  if (session.user?.email !== ADMIN_EMAIL) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 max-w-md w-full text-center">
+          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <ShieldX className="w-7 h-7 text-red-500" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Acesso negado</h1>
+          <p className="text-gray-500 text-sm mb-2">
+            A conta <strong>{session.user?.email}</strong> não tem permissão para acessar o painel admin.
+          </p>
+          <p className="text-gray-400 text-xs mb-6">
+            Entre com o e-mail autorizado para continuar.
+          </p>
+          <div className="flex flex-col items-center gap-3">
+            <SignOutButton label="Sair e trocar de conta" />
+            <Link href="/" className="text-xs text-gray-400 hover:text-gray-600">
+              ← Voltar à página de agendamento
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Admin autorizado
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-4 py-4">
@@ -45,10 +74,7 @@ export default async function AdminPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="text-xs text-blue-600 hover:underline"
-            >
+            <Link href="/" className="text-xs text-blue-600 hover:underline">
               Ver página pública
             </Link>
             <SignOutButton />
@@ -57,7 +83,6 @@ export default async function AdminPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-        {/* Disponibilidade */}
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-6">
             <Settings className="w-5 h-5 text-gray-500" />
@@ -69,7 +94,6 @@ export default async function AdminPage() {
           <AvailabilityConfig />
         </section>
 
-        {/* Agendamentos */}
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-6">
             <Calendar className="w-5 h-5 text-gray-500" />
