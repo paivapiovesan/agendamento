@@ -31,9 +31,10 @@ export function BookingForm() {
       const saved = sessionStorage.getItem(PENDING_KEY)
       if (saved) {
         try {
-          const { date, slot } = JSON.parse(saved)
+          const { date, slot, notes } = JSON.parse(saved)
           setSelectedDate(date)
           setSelectedSlot(slot)
+          if (notes) setForm((f) => ({ ...f, notes }))
         } catch {}
         sessionStorage.removeItem(PENDING_KEY)
       }
@@ -67,7 +68,7 @@ export function BookingForm() {
 
   const handleSignIn = () => {
     if (selectedDate && selectedSlot) {
-      sessionStorage.setItem(PENDING_KEY, JSON.stringify({ date: selectedDate, slot: selectedSlot }))
+      sessionStorage.setItem(PENDING_KEY, JSON.stringify({ date: selectedDate, slot: selectedSlot, notes: form.notes }))
     }
     signIn("google")
   }
@@ -276,6 +277,20 @@ export function BookingForm() {
             {format(parseISO(selectedSlot.end), "HH:mm")}
           </div>
 
+          {/* Observações — visível para todos antes do login */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Observações <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="Informe o que desejar..."
+              rows={3}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+          </div>
+
           {/* Não logado */}
           {status !== "loading" && !session ? (
             <div className="flex flex-col items-center py-6 text-center border border-gray-200 rounded-xl bg-gray-50">
@@ -344,17 +359,6 @@ export function BookingForm() {
                     value={form.guestEmail}
                     onChange={(e) => setForm({ ...form, guestEmail: e.target.value })}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Observações <span className="text-gray-400 font-normal">(opcional)</span>
-                  </label>
-                  <textarea
-                    value={form.notes}
-                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                    rows={3}
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
                 </div>
               </div>
